@@ -1,0 +1,23 @@
+pbr>=3.0
+pyyaml
+
+# Tools
+wax-toolbox  # some tools
+fire  # convert any python object into command line interface
+
+# ML:
+pandas
+pyarrow  # engine for parquet file format with pandas
+sklearn
+category_encoders  # cool categorical encoders compatible skleanr
+numpy
+
+xgboost==0.72.1  # else got buggy DMatrix
+lightgbm
+catboost
+
+hyperopt
+networkx==1.11  # buggy hyperopt
+
+#plotlyink
+#plotly==2.5
