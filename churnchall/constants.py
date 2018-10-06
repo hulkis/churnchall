@@ -18,10 +18,80 @@ for d in [DATA_DIR, RAW_DATA_DIR, CLEANED_DATA_DIR, MODEL_DIR, TUNING_DIR, RESUL
 
 SEED = 42
 
-ALL_COLS = []
-FLOAT_COLS = []
-INT_COLS = []
-STR_COLS = []
+ALL_COLS = ['Echéance.Année',
+            'Echéance.Mois',
+            'Produit',
+            'Durée',
+            'Type.d.offre',
+            'Type.de.prix',
+            'Canal.de.vente',
+            'Zone',
+            'Marché.de.la.SC',
+            'Segment.société.contractante',
+            'Entité.société.contractante',
+            'Profil.PRM',
+            'Couleur.Tarif.Elec',
+            'Volume_annuel',
+            'Prix_Gaz_M3',
+            'Prix_Elec_M3',
+            'nb_dem_12',
+            'nb_recla_12',
+            'nb_dem_reco_12',
+            'nb_recla_reco_12',
+            'type_client',
+            'libellé_NAF',
+            'activité_NCE',
+            'ancienneté_client',
+            'Orientation Economique',
+            'Population',
+            'Evolution Pop %',
+            'Nb propriétaire',
+            'Nb Logement',
+            'Dep Moyenne Salaires Horaires',
+            'Urbanité Ruralité',
+            'Nb Atifs',
+            'Dynamique Démographique BV',
+            'Environnement Démographique',
+            'Seg Dyn Entre']
+
+FLOAT_COLS = ['Volume_annuel',
+              'Prix_Gaz_M3',
+              'Prix_Elec_M3',
+              'ancienneté_client',
+              'Population',
+              'Evolution Pop %',
+              'Nb propriétaire',
+              'Nb Logement',
+              'Dep Moyenne Salaires Horaires',
+              'Nb Atifs']
+
+INT_COLS = ['Echéance.Année',
+            'Echéance.Mois',
+            'Durée',
+            'nb_dem_12',
+            'nb_recla_12',
+            'nb_dem_reco_12',
+            'nb_recla_reco_12']
+
+STR_COLS = ['Produit',
+            'Type.d.offre',
+            'Type.de.prix',
+            'Canal.de.vente',
+            'Zone',
+            'Marché.de.la.SC',
+            'Segment.société.contractante',
+            'Entité.société.contractante',
+            'Profil.PRM',
+            'Couleur.Tarif.Elec',
+            'type_client',
+            'libellé_NAF',
+            'activité_NCE',
+            'Orientation Economique',
+            'Urbanité Ruralité',
+            'Dynamique Démographique BV',
+            'Environnement Démographique',
+            'Seg Dyn Entre']
+
 TIMESTAMP_COLS = []
 
 NLP_COLS = []
