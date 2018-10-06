@@ -3,7 +3,7 @@ import logging
 
 import hyperopt
 
-from homeserv_inter.constants import TUNING_DIR
+from churnchall.constants import TUNING_DIR
 
 logger = logging.getLogger(__name__)
 

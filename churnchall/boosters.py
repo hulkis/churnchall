@@ -14,6 +14,28 @@ from wax_toolbox import Timer
 warnings.filterwarnings(action="ignore", category=DeprecationWarning)
 
 
+def lgb_auc_lift(y_pred, y_true, target=0):
+    if isinstance(y_true, lgb.Dataset):
+        y_true = y_true.label
+
+    df_lift = pd.DataFrame({'pred': y_pred, 'true': y_true})
+
+    # Sort by prediction
+    if target == 1:
+        df_lift = df_lift.sort_values("pred", ascending=False)
+    elif target == 0:
+        df_lift = df_lift.sort_values("pred", ascending=True)
+    else:
+        raise ValueError
+
+    # compute lift score for each sample of population
+    nb_targets = float(df_lift[df_lift['true'] == target].shape[0])
+    df_lift["auclift"] = (df_lift["true"] == target).cumsum() / nb_targets
+    auc_lift = df_lift["auclift"].mean()
+
+    return "AUC Lift", auc_lift, True
+
+
 def get_df_importance(booster):
     if hasattr(booster, "feature_name"):  # lightgbm
         idx = booster.feature_name()
@@ -121,22 +143,22 @@ class LgbCookie(BaseModelCookie):
         "verbose": -1,
         "nthreads": 16,
         # 'is_unbalance': 'true',  #because training data is unbalance (replaced with scale_pos_weight)
-        "scale_pos_weight": 0.33,  # used only in binary application, weight of labels with positive class
+        "scale_pos_weight": 0.97,  # used only in binary application, weight of labels with positive class
         "objective": "xentropy",  # better optimize on cross-entropy loss for auc
-        "metric": {"auc"},  # alias for roc_auc_score
+        "metric": {"xentropy", "auc"},  # alias for roc_auc_score
     }
 
     # Best fit params
     params_best_fit = {
         "boosting_type": "gbdt",  # algorithm to use
         "learning_rate": 0.04,
-        "num_leaves": 100,  # we should let it be smaller than 2^(max_depth)
-        "min_data_in_leaf": 20,  # Minimum number of data need in a child
+        "num_leaves": 30,  # we should let it be smaller than 2^(max_depth)
+        # "min_data_in_leaf": 20,  # Minimum number of data need in a child
         "max_depth": -1,  # -1 means no limit
-        "bagging_fraction": 0.84,  # Subsample ratio of the training instance.
-        "feature_fraction": 0.75,  # Subsample ratio of columns when constructing each tree.
-        "bagging_freq": 9,  # frequence of subsample, <=0 means no enable
-        "max_bin": 200,
+        # "bagging_fraction": 0.84,  # Subsample ratio of the training instance.
+        # "feature_fraction": 0.75,  # Subsample ratio of columns when constructing each tree.
+        # "bagging_freq": 9,  # frequence of subsample, <=0 means no enable
+        # "max_bin": 200,
         # 'min_data_in_leaf': 20,  # minimal number of data in one leaf
         # 'min_child_weight': 5,  # Minimum sum of instance weight(hessian) needed in a child(leaf)
         # 'subsample_for_bin': 200000,  # Number of samples for constructing bin
@@ -163,11 +185,16 @@ class LgbCookie(BaseModelCookie):
 
     def validate(self, save_model=True, **kwargs):
         dtrain, dtest = self.get_train_valid_set(as_lgb_dataset=True)
-        watchlist = [dtrain, dtest]
+        valid_sets = [dtrain, dtest]
+        valid_names = ['train', 'test']
         booster = lgb.train(
             params=self.params_best_fit,
             train_set=dtrain,
-            valid_sets=watchlist,
+
+            valid_sets=valid_sets,
+            valid_names=valid_names,
+
+            feval=lgb_auc_lift,
             # adaptative learning rate :
             # learning_rates=lambda iter: 0.5 * (0.999 ** iter),
             **kwargs,
@@ -197,6 +224,7 @@ class LgbCookie(BaseModelCookie):
             train_set=dtrain,
             nfold=nfold,
             verbose_eval=True,  # display the progress
+            feval=lgb_auc_lift,
             # display the standard deviation in progress, results are not affected
             show_stdv=True,
             num_boost_round=num_boost_round,
