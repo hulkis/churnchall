@@ -105,6 +105,7 @@ ENV/
 *.orig
 
 
+data/*
 data/raw/
 data/cleaned/
 *temp-plot.html

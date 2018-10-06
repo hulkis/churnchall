@@ -8,10 +8,16 @@ import pandas as pd
 import xgboost as xgb
 from sklearn import model_selection, preprocessing
 
-from wax_toolbox.profiling import Timer
 from churnchall.constants import (CAT_COLS, CLEANED_DATA_DIR, COLS_DROPPED_RAW,
-                                                     DATA_DIR, LOW_IMPORTANCE_FEATURES, NLP_COLS,
-                                                     RAW_DATA_DIR, SEED, TIMESTAMP_COLS)
+                                  DATA_DIR, LOW_IMPORTANCE_FEATURES, NLP_COLS,
+                                  RAW_DATA_DIR, SEED, TIMESTAMP_COLS)
+from wax_toolbox.profiling import Timer
+
+
+def raw_convert_csv_to_parquet():
+    df = pd.read_csv(DATA_DIR / 'train.csv')
+    __import__('IPython').embed()  # Enter Ipython
+
 
 # Feature ing.:
 
@@ -53,7 +59,8 @@ class CleanedDataCookie:
 
     @staticmethod
     def _build_features_datetime(df):
-        timestamp_cols = list(set(df.columns).intersection(set(TIMESTAMP_COLS)))
+        timestamp_cols = list(
+            set(df.columns).intersection(set(TIMESTAMP_COLS)))
         for col in timestamp_cols:
             df = datetime_features_single(df, col)
 
@@ -240,8 +247,11 @@ class DataHandleCookie:
 
         return df[:, sorted_cols]
 
-    def _process_cleaned_single_set(self, df, as_xgb_dmatrix=False,
-                                    as_lgb_dataset=False, as_cgb_pool=False):
+    def _process_cleaned_single_set(self,
+                                    df,
+                                    as_xgb_dmatrix=False,
+                                    as_lgb_dataset=False,
+                                    as_cgb_pool=False):
 
         if self.drop_lowimp_features:
             print('Dropping low importance features !')
@@ -249,11 +259,14 @@ class DataHandleCookie:
                 set(LOW_IMPORTANCE_FEATURES))
             df = df.drop(columns=list(dropcols))
 
-        Xtrain, ytrain = df.drop(columns=[self.target_col]), df[[self.target_col]]
+        Xtrain, ytrain = df.drop(columns=[self.target_col]), df[[
+            self.target_col
+        ]]
 
         # Getting indices of categorical columns:
         cat_cols = set(Xtrain.columns).intersection(set(CAT_COLS))
-        idx_cat_features = list(range(0, len(cat_cols)))  # as they are already sorted !
+        idx_cat_features = list(range(
+            0, len(cat_cols)))  # as they are already sorted !
 
         if as_xgb_dmatrix:
             with Timer('Creating DMatrix for Train set Xgboost'):
@@ -272,15 +285,18 @@ class DataHandleCookie:
     def get_test_set(self, as_cgb_pool=False):
         df = self._get_cleaned_single_set(dataset="test")
         return self._process_cleaned_single_set(
-            df, as_xgb_dmatrix=False, as_lgb_dataset=False, as_cgb_pool=as_cgb_pool)
+            df,
+            as_xgb_dmatrix=False,
+            as_lgb_dataset=False,
+            as_cgb_pool=as_cgb_pool)
 
     def get_train_set(self,
                       as_xgb_dmatrix=False,
                       as_lgb_dataset=False,
                       as_cgb_pool=False):
         df = self._get_cleaned_single_set(dataset="train")
-        return self._process_cleaned_single_set(
-            df, as_xgb_dmatrix, as_lgb_dataset, as_cgb_pool)
+        return self._process_cleaned_single_set(df, as_xgb_dmatrix,
+                                                as_lgb_dataset, as_cgb_pool)
 
     def get_train_valid_set(self,
                             split_perc=0.2,
@@ -293,9 +309,9 @@ class DataHandleCookie:
         dftest = df.index.difference(dftrain.index)
         del df
 
-        dtrain = self._process_cleaned_single_set(
-            dftrain, as_xgb_dmatrix, as_lgb_dataset, as_cgb_pool)
-        dtest = self._process_cleaned_single_set(
-            dtest, as_xgb_dmatrix, as_lgb_dataset, as_cgb_pool)
+        dtrain = self._process_cleaned_single_set(dftrain, as_xgb_dmatrix,
+                                                  as_lgb_dataset, as_cgb_pool)
+        dtest = self._process_cleaned_single_set(dtest, as_xgb_dmatrix,
+                                                 as_lgb_dataset, as_cgb_pool)
 
         return dtrain, dtest
