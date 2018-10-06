@@ -260,7 +260,8 @@ class LgbCookie(BaseModelCookie):
 
         df = pd.DataFrame({"target": pred})
         now = pd.Timestamp.now(tz='CET').strftime("%d-%Hh-%Mm")
-        df.to_csv(RESULT_DIR / "submit_{}.csv".format(now), index=False)
+        df.to_csv(RESULT_DIR / "submit_{}.csv".format(now),
+                  index=False, header=False)
 
 
 class XgbCookie(BaseModelCookie):

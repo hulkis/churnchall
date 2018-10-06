@@ -202,13 +202,28 @@ class DataHandleCookie:
                 set(LOW_IMPORTANCE_FEATURES))
             df = df.drop(columns=list(dropcols))
 
-        Xtrain = df.drop(columns=[self.target_col])
-        ytrain = df[[self.target_col]]
-
         # Getting indices of categorical columns:
-        cat_cols = set(Xtrain.columns).intersection(set(CAT_COLS))
+        cat_cols = set(df.columns).intersection(set(CAT_COLS))
         idx_cat_features = list(range(
             0, len(cat_cols)))  # as they are already sorted !
+
+        # If test set and no need to split:
+        if self.target_col not in df.columns:
+            if as_xgb_dmatrix:
+                with Timer('Creating DMatrix for Train set Xgboost'):
+                    return xgb.DMatrix(df)
+            elif as_lgb_dataset:
+                with Timer('Creating Dataset for Train set LightGBM'):
+                    return lgb.Dataset(df)
+            elif as_cgb_pool:
+                with Timer('Creating Pool for Train set CatBoost'):
+                    pool = cgb.Pool(df, None, idx_cat_features)
+                return pool
+            else:
+                return df
+
+        Xtrain = df.drop(columns=[self.target_col])
+        ytrain = df[[self.target_col]]
 
         if as_xgb_dmatrix:
             with Timer('Creating DMatrix for Train set Xgboost'):
