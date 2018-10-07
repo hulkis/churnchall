@@ -46,3 +46,9 @@ Results History
 
     churnchall lgb generate-submit --debug=False --num-boost-round=1200
     # Public score: 0.8258142519
+
+
+References
+----------
+
+- https://www.kaggle.com/arthurtok/introduction-to-ensembling-stacking-in-python
