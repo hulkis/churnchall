@@ -47,6 +47,14 @@ Results History
     churnchall lgb generate-submit --debug=False --num-boost-round=1200
     # Public score: 0.8258142519
 
+- On tag v0.0.2:
+
+  No features done, nada, except some lgb parameters tuning (very few)
+
+  .. code:: bash
+
+    churnchall lgb generate-submit --debug=False --num-boost-round=1200
+    # Public score: 0.8132866009
 
 References
 ----------
