@@ -8,7 +8,7 @@ import xgboost as xgb
 
 from churnchall.constants import MODEL_DIR, RESULT_DIR
 from churnchall.datahandler import DataHandleCookie
-from churnchall.tuning import HyperParamsTuning
+from churnchall.tuning import HyperParamsTuningMixin
 from wax_toolbox import Timer
 
 warnings.filterwarnings(action="ignore", category=DeprecationWarning)
@@ -49,7 +49,7 @@ def get_df_importance(booster):
         arr = booster.get_feature_importance()
         df = pd.DataFrame(index=idx, data=arr, columns=["importance"])
     else:
-        raise NotImplementedError
+        raise ValueError(type(booster))
 
     # Traduce in percentage:
     df["importance"] = df["importance"] / df["importance"].sum() * 100
@@ -57,7 +57,7 @@ def get_df_importance(booster):
     return df
 
 
-class BaseModelCookie(DataHandleCookie, HyperParamsTuning):
+class BaseModelCookie(DataHandleCookie, HyperParamsTuningMixin):
 
     # Attributes to be defined:
     @property
@@ -100,39 +100,6 @@ class BaseModelCookie(DataHandleCookie, HyperParamsTuning):
     def cv():
         raise NotImplementedError
 
-    def hypertuning_objective(self, params):
-        params = self._ensure_type_params(params)
-        msg = "-- HyperOpt -- CV with {}\n".format(params)
-        params = {
-            **self.common_params,
-            **params
-        }  # recombine with common params
-
-        # Fix learning rate:
-        params["learning_rate"] = 0.04
-
-        with Timer(msg, at_enter=True):
-            eval_hist = self.cv(params_model=params, nfold=5)
-
-        if "auc-mean" in eval_hist.keys():  # lightgbm
-            score = max(eval_hist["auc-mean"])
-        else:
-            raise NotImplementedError
-
-        result = {
-            "loss": score,
-            "status": hyperopt.STATUS_OK,
-            # -- store other results like this
-            # "eval_time": time.time(),
-            # 'other_stuff': {'type': None, 'value': [0, 1, 2]},
-            # -- attachments are handled differently
-            "attachments": {
-                "eval_hist": eval_hist
-            },
-        }
-
-        return result
-
 
 class LgbCookie(BaseModelCookie):
 
@@ -145,21 +112,21 @@ class LgbCookie(BaseModelCookie):
         # 'is_unbalance': 'true',  #because training data is unbalance (replaced with scale_pos_weight)
         "scale_pos_weight": 0.97,  # used only in binary application, weight of labels with positive class
         "objective": "xentropy",  # better optimize on cross-entropy loss for auc
-        "metric": {"xentropy", "auc"},  # alias for roc_auc_score
+        "metric": {"auc"},  # alias for roc_auc_score
     }
 
     # Best fit params
     params_best_fit = {
-        "boosting_type": "dart",  # algorithm to use
-        "learning_rate": 0.04,
-        "num_leaves": 40,  # we should let it be smaller than 2^(max_depth)
+        "boosting_type": "gbdt",  # algorithm to use
+        "learning_rate": 0.01,
+        "num_leaves": 10,  # we should let it be smaller than 2^(max_depth)
         # "min_data_in_leaf": 20,  # Minimum number of data need in a child
         "max_depth": -1,  # -1 means no limit
-        "bagging_fraction": 0.7583850720085051,  # Subsample ratio of the training instance.
-        "feature_fraction": 0.9885728215452598,  # Subsample ratio of columns when constructing each tree.
-        "bagging_freq": 12,  # frequence of subsample, <=0 means no enable
+        "bagging_fraction": 0.9487944316907742,  # Subsample ratio of the training instance.
+        "feature_fraction": 0.9763410806631222,  # Subsample ratio of columns when constructing each tree.
+        "bagging_freq": 14,  # frequence of subsample, <=0 means no enable
         # "max_bin": 200,
-        'min_data_in_leaf': 100,  # minimal number of data in one leaf
+        'min_data_in_leaf': 14,  # minimal number of data in one leaf
         # 'min_child_weight': 5,  # Minimum sum of instance weight(hessian) needed in a child(leaf)
         # 'subsample_for_bin': 200000,  # Number of samples for constructing bin
         # 'min_split_gain': 0,  # lambda_l1, lambda_l2 and min_gain_to_split to regularization
@@ -168,17 +135,17 @@ class LgbCookie(BaseModelCookie):
         **common_params,
     }
 
-    # Tuning attributes in relation to HyperParamsTuning
+    # tuning attributes in relation to HyperParamsTuningMixin
     int_params = ("num_leaves", "max_depth", "min_data_in_leaf",
                   "bagging_freq")
     float_params = ("learning_rate", "feature_fraction", "bagging_fraction")
     hypertuning_space = {
         "boosting": hyperopt.hp.choice("boosting", ["gbdt", "dart"]), # "rf",
-        "num_leaves": hyperopt.hp.quniform("num_leaves", 30, 300, 20),
-        "min_data_in_leaf": hyperopt.hp.quniform("min_data_in_leaf", 10, 100, 10),
+        "num_leaves": hyperopt.hp.quniform("num_leaves", 10, 60, 2),
+        "min_data_in_leaf": hyperopt.hp.quniform("min_data_in_leaf", 5, 20, 2),
         # "learning_rate": hyperopt.hp.uniform("learning_rate", 0.001, 0.1),
-        "feature_fraction": hyperopt.hp.uniform("feature_fraction", 0.7, 0.99),
-        "bagging_fraction": hyperopt.hp.uniform("bagging_fraction", 0.7, 0.99),
+        "feature_fraction": hyperopt.hp.uniform("feature_fraction", 0.85, 0.99),
+        "bagging_fraction": hyperopt.hp.uniform("bagging_fraction", 0.85, 0.99),
         "bagging_freq": hyperopt.hp.quniform("bagging_freq", 6, 18, 2),
     }
 
