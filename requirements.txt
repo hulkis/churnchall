@@ -12,7 +12,7 @@ sklearn
 category_encoders  # cool categorical encoders compatible skleanr
 numpy
 
-xgboost==0.72.1  # else got buggy DMatrix
+xgboost
 lightgbm
 catboost
 

@@ -14,10 +14,7 @@ from wax_toolbox import Timer
 warnings.filterwarnings(action="ignore", category=DeprecationWarning)
 
 
-def lgb_auc_lift(y_pred, y_true, target=0):
-    if isinstance(y_true, lgb.Dataset):
-        y_true = y_true.label
-
+def compute_auc_lift(y_pred, y_true, target):
     df_lift = pd.DataFrame({'pred': y_pred, 'true': y_true})
 
     # Sort by prediction
@@ -32,8 +29,21 @@ def lgb_auc_lift(y_pred, y_true, target=0):
     nb_targets = float(df_lift[df_lift['true'] == target].shape[0])
     df_lift["auclift"] = (df_lift["true"] == target).cumsum() / nb_targets
     auc_lift = df_lift["auclift"].mean()
+    return auc_lift
 
-    return "AUC Lift", auc_lift, True
+
+def lgb_auc_lift(y_pred, y_true, target=0):
+        y_true = y_true.label
+        auc_lift = compute_auc_lift(y_pred, y_train, target)
+        return "AUC Lift", auc_lift, True
+
+
+def xgb_auc_lift(y_pred, y_true, target=0):
+    y_true = y_true.get_label()
+    auc_lift = compute_auc_lift(y_pred, y_true, target)
+    # return a pair metric_name, result. The metric name must not contain a colon (:) or a space
+    # since preds are margin(before logistic transformation, cutoff at 0)
+    return "AUC_Lift", auc_lift
 
 
 def get_df_importance(booster):
@@ -76,6 +86,7 @@ class BaseModelCookie(DataHandleCookie, HyperParamsTuningMixin):
         now = pd.Timestamp.now(tz='CET').strftime("%d-%Hh-%Mm")
         f = MODEL_DIR / "{}_model_{}.txt".format(self.algo, now)
         booster.save_model(f.as_posix())
+        return f
 
     @staticmethod
     def _generate_plot(eval_hist):
@@ -118,7 +129,7 @@ class LgbCookie(BaseModelCookie):
     # Best fit params
     params_best_fit = {
         "boosting_type": "gbdt",  # algorithm to use
-        "learning_rate": 0.01,
+        "learning_rate": 0.04,
         "num_leaves": 10,  # we should let it be smaller than 2^(max_depth)
         # "min_data_in_leaf": 20,  # Minimum number of data need in a child
         "max_depth": -1,  # -1 means no limit
@@ -203,6 +214,19 @@ class LgbCookie(BaseModelCookie):
 
         return eval_hist
 
+    def predict(self, from_model_saved, label=None):
+        booster = lgb.Booster(model_file=from_model_saved)
+        df = self.get_test_set()
+
+        with Timer("Predicting"):
+            pred = booster.predict(df)
+
+        if not label:
+            now = pd.Timestamp.now(tz='CET').strftime("%d-%Hh-%Mm")
+            label = 'pred_{}_{}'.format(self.algo, now)
+
+        return pd.DataFrame({label: pred})
+
     def generate_submit(self, num_boost_round=None, from_model_saved=False):
 
         if not from_model_saved:
@@ -215,16 +239,9 @@ class LgbCookie(BaseModelCookie):
                 train_set=dtrain,
                 num_boost_round=num_boost_round)
 
-            self.save_model(booster)
+            from_model_saved = self.save_model(booster)
 
-        else:
-            booster = lgb.Booster(model_file=from_model_saved)
-
-        df = self.get_test_set()
-        with Timer("Predicting"):
-            pred = booster.predict(df)
-
-        df = pd.DataFrame({"target": pred})
+        df = self.predict(from_model_saved)
         now = pd.Timestamp.now(tz='CET').strftime("%d-%Hh-%Mm")
         df.to_csv(RESULT_DIR / "submit_{}.csv".format(now),
                   index=False, header=False)
@@ -239,8 +256,9 @@ class XgbCookie(BaseModelCookie):
         "nthreads": 16,
         "objective": "binary:logistic",
         # 'is_unbalance': 'true',  #because training data is unbalance (replaced with scale_pos_weight)
-        "scale_pos_weight": 0.33,  # used only in binary application, weight of labels with positive class
+        "scale_pos_weight": 0.97,  # used only in binary application, weight of labels with positive class
         "eval_metric": "auc",
+        "tree_method": "hist",
     }
     # https://www.analyticsvidhya.com/blog/2016/03/complete-guide-parameter-tuning-xgboost-with-codes-python/
     params_best_fit = {
@@ -267,6 +285,7 @@ class XgbCookie(BaseModelCookie):
             params=self.params_best_fit,
             dtrain=dtrain,
             evals=watchlist,
+            feval=xgb_auc_lift,
             **kwargs,
         )
 
@@ -291,8 +310,11 @@ class XgbCookie(BaseModelCookie):
             params=params_model,
             dtrain=dtrain,
             nfold=nfold,
+
+            feval=xgb_auc_lift,
             verbose_eval=True,
             show_stdv=True,
+
             num_boost_round=num_boost_round,
             early_stopping_rounds=early_stopping_rounds,
             **kwargs)
@@ -310,12 +332,12 @@ class CatBoostCookie(BaseModelCookie):
         "thread_count": 15,
         "objective": "Logloss",
         "eval_metric": "AUC",
-        "scale_pos_weight": 0.33,  # used only in binary application, weight of labels with positive class
+        "scale_pos_weight": 0.97,  # used only in binary application, weight of labels with positive class
     }
 
     params_best_fit = {
         # "max_depth": 12,
-        "learning_rate": 0.02,
+        "learning_rate": 0.04,
         **common_params,
     }
 
