@@ -56,6 +56,15 @@ Results History
     churnchall lgb generate-submit --debug=False --num-boost-round=1200
     # Public score: 0.8132866009
 
+- On tag v0.0.3:
+
+  .. code:: bash
+
+    churnchall xgb cv --debug=False --num-boost-round=4000 --early-stopping-rounds=300
+    #[784]   train-AUC_Lift:0.985376+9.80804e-05     train-auc:0.999978+2.63818e-06  test-AUC_Lift:0.972193+0.00115528       test-auc:0.986393+0.00106838
+    #[785]   train-AUC_Lift:0.985376+9.82291e-05     train-auc:0.999978+2.63818e-06  test-AUC_Lift:0.972194+0.00115615       test-auc:0.986395+0.00106889
+
+
 References
 ----------
 
