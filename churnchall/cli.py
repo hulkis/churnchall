@@ -3,6 +3,7 @@ import fire
 
 from churnchall.datahandler import CleanedDataCookie, raw_convert_csv_to_parquet
 from churnchall.boosters import CatBoostCookie, LgbCookie, XgbCookie
+from churnchall.ensemble import Ensemble
 
 
 def main():
@@ -12,4 +13,5 @@ def main():
         "lgb": LgbCookie,
         "xgb": XgbCookie,
         "cgb": CatBoostCookie,
+        "ens": Ensemble,
     })

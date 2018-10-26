@@ -1,3 +1,4 @@
+import copy
 import warnings
 
 import catboost as cgb
@@ -5,11 +6,11 @@ import hyperopt
 import lightgbm as lgb
 import pandas as pd
 import xgboost as xgb
+from wax_toolbox import Timer
 
 from churnchall.constants import MODEL_DIR, RESULT_DIR
-from churnchall.datahandler import DataHandleCookie
+from churnchall.datahandler import DataHandleCookie, to_gradboost_dataset
 from churnchall.tuning import HyperParamsTuningMixin
-from wax_toolbox import Timer
 
 warnings.filterwarnings(action="ignore", category=DeprecationWarning)
 
@@ -33,9 +34,9 @@ def compute_auc_lift(y_pred, y_true, target):
 
 
 def lgb_auc_lift(y_pred, y_true, target=0):
-        y_true = y_true.label
-        auc_lift = compute_auc_lift(y_pred, y_train, target)
-        return "AUC Lift", auc_lift, True
+    y_true = y_true.label
+    auc_lift = compute_auc_lift(y_pred, y_true, target)
+    return "AUC Lift", auc_lift, True
 
 
 def xgb_auc_lift(y_pred, y_true, target=0):
@@ -91,7 +92,8 @@ class BaseModelCookie(DataHandleCookie, HyperParamsTuningMixin):
     @staticmethod
     def _generate_plot(eval_hist):
         try:
-            import plotlyink
+            from plotlyink import register_iplot_accessor
+            register_iplot_accessor()
             dfhist = pd.DataFrame(eval_hist)
             fig = dfhist.iplot.scatter(as_figure=True)
             import plotly
@@ -151,12 +153,14 @@ class LgbCookie(BaseModelCookie):
                   "bagging_freq")
     float_params = ("learning_rate", "feature_fraction", "bagging_fraction")
     hypertuning_space = {
-        "boosting": hyperopt.hp.choice("boosting", ["gbdt", "dart"]), # "rf",
+        "boosting": hyperopt.hp.choice("boosting", ["gbdt", "dart"]),  # "rf",
         "num_leaves": hyperopt.hp.quniform("num_leaves", 10, 60, 2),
         "min_data_in_leaf": hyperopt.hp.quniform("min_data_in_leaf", 5, 20, 2),
         # "learning_rate": hyperopt.hp.uniform("learning_rate", 0.001, 0.1),
-        "feature_fraction": hyperopt.hp.uniform("feature_fraction", 0.85, 0.99),
-        "bagging_fraction": hyperopt.hp.uniform("bagging_fraction", 0.85, 0.99),
+        "feature_fraction": hyperopt.hp.uniform("feature_fraction", 0.85,
+                                                0.99),
+        "bagging_fraction": hyperopt.hp.uniform("bagging_fraction", 0.85,
+                                                0.99),
         "bagging_freq": hyperopt.hp.quniform("bagging_freq", 6, 18, 2),
     }
 
@@ -167,10 +171,8 @@ class LgbCookie(BaseModelCookie):
         booster = lgb.train(
             params=self.params_best_fit,
             train_set=dtrain,
-
             valid_sets=valid_sets,
             valid_names=valid_names,
-
             feval=lgb_auc_lift,
             # adaptative learning rate :
             # learning_rates=lambda iter: 0.5 * (0.999 ** iter),
@@ -227,6 +229,33 @@ class LgbCookie(BaseModelCookie):
 
         return pd.DataFrame({label: pred})
 
+    def fit_predict(self, X_train, y_train, X_pred, **kwargs):
+        dtrain = to_gradboost_dataset(X_train, y_train, as_lgb_dataset=True)
+        dtest = to_gradboost_dataset(X_pred, as_lgb_dataset=False)
+
+        valid_sets = [dtrain]
+        valid_names = ['train']
+
+        params = copy.deepcopy(self.params_best_fit)
+        params['random_state'] = self.random_state
+
+        booster = lgb.train(
+            params=params,
+            train_set=dtrain,
+            valid_sets=valid_sets,
+            valid_names=valid_names,
+            feval=lgb_auc_lift,
+            **kwargs,
+        )
+
+        pred = booster.predict(dtest)
+
+        self.booster = booster
+
+        now = pd.Timestamp.now(tz='CET').strftime("%d-%Hh-%Mm")
+        label = 'pred_{}_{}'.format(self.algo, now)
+        return pd.DataFrame({label: pred})
+
     def generate_submit(self, num_boost_round=None, from_model_saved=False):
 
         if not from_model_saved:
@@ -237,14 +266,17 @@ class LgbCookie(BaseModelCookie):
             booster = lgb.train(
                 params=self.params_best_fit,
                 train_set=dtrain,
-                num_boost_round=num_boost_round)
+                num_boost_round=num_boost_round,
+            )
 
             from_model_saved = self.save_model(booster)
 
         df = self.predict(from_model_saved)
         now = pd.Timestamp.now(tz='CET').strftime("%d-%Hh-%Mm")
-        df.to_csv(RESULT_DIR / "submit_{}.csv".format(now),
-                  index=False, header=False)
+        df.to_csv(
+            RESULT_DIR / "submit_{}.csv".format(now),
+            index=False,
+            header=False)
 
 
 class XgbCookie(BaseModelCookie):
@@ -310,11 +342,9 @@ class XgbCookie(BaseModelCookie):
             params=params_model,
             dtrain=dtrain,
             nfold=nfold,
-
             feval=xgb_auc_lift,
             verbose_eval=True,
             show_stdv=True,
-
             num_boost_round=num_boost_round,
             early_stopping_rounds=early_stopping_rounds,
             **kwargs)
