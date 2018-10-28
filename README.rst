@@ -64,6 +64,14 @@ Results History
     #[784]   train-AUC_Lift:0.985376+9.80804e-05     train-auc:0.999978+2.63818e-06  test-AUC_Lift:0.972193+0.00115528       test-auc:0.986393+0.00106838
     #[785]   train-AUC_Lift:0.985376+9.82291e-05     train-auc:0.999978+2.63818e-06  test-AUC_Lift:0.972194+0.00115615       test-auc:0.986395+0.00106889
 
+- On tag v0.0.4:
+
+  .. code:: bash
+
+    churnchall ens generate-submit --n-splits=5
+    # public score: 0.820797346
+
+
 
 References
 ----------
