@@ -133,9 +133,13 @@ class Ensemble():
         X_train, y_train = dtrain
         X_test = dtest
 
-        y_pred = self.fit_predict(X_train, y_train, X_test)
+        with Timer('Fit & Predict for all stacks'):
+            y_pred = self.fit_predict(X_train, y_train, X_test)
 
-        df = pd.DataFrame(y_pred)
+        df = pd.DataFrame(y_pred, columns=['value'])
+        df.loc[df['value'] > 1.] = 1.
+        df.loc[df['value'] < 0.] = 0.
+
         now = pd.Timestamp.now(tz='CET').strftime("%d-%Hh-%Mm")
         df.to_csv(
             RESULT_DIR / "submit_{}.csv".format(now),
