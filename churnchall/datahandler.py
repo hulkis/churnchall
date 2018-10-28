@@ -152,13 +152,13 @@ def to_gradboost_dataset(X,
                          as_cgb_pool=False):
     if y is None:
         if as_xgb_dmatrix:
-            with Timer('Creating DMatrix for Test set Xgboost'):
+            with Timer('Creating DMatrix for Xgboost'):
                 return xgb.DMatrix(X)
         elif as_lgb_dataset:
-            with Timer('Creating Dataset for Test set LightGBM'):
+            with Timer('Creating Dataset for LightGBM'):
                 return lgb.Dataset(X)
         elif as_cgb_pool:
-            with Timer('Creating Pool for Test set CatBoost'):
+            with Timer('Creating Pool for CatBoost'):
                 pool = cgb.Pool(X, None, idx_cat_features)
                 return pool
         else:
@@ -166,13 +166,13 @@ def to_gradboost_dataset(X,
 
     else:
         if as_xgb_dmatrix:
-            with Timer('Creating DMatrix for Train set Xgboost'):
+            with Timer('Creating DMatrix for Xgboost'):
                 return xgb.DMatrix(X, y)
         elif as_lgb_dataset:
-            with Timer('Creating Dataset for Train set LightGBM'):
+            with Timer('Creating Dataset for LightGBM'):
                 return lgb.Dataset(X, y.values.ravel())
         elif as_cgb_pool:
-            with Timer('Creating Pool for Train set CatBoost'):
+            with Timer('Creating Pool for CatBoost'):
                 pool = cgb.Pool(X, y, idx_cat_features)
             return pool
         else:

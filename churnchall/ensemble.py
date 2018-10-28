@@ -1,6 +1,7 @@
 import catboost as cgb
 import lightgbm as lgb
 import numpy as np
+import pandas as pd
 import xgboost as xgb
 from sklearn.linear_model import Ridge
 from sklearn.metrics import make_scorer
@@ -9,6 +10,19 @@ from wax_toolbox import Timer
 
 from churnchall.boosters import CatBoostCookie, LgbCookie, XgbCookie, compute_auc_lift
 from churnchall.datahandler import DataHandleCookie
+from churnchall.constants import RESULT_DIR
+
+"""
+https://github.com/vecxoz/vecstack
+
+--> What is blending? How is it related to stacking?
+    Basically it is the same thing. Both approaches use predictions as features.
+    Often this terms are used interchangeably.
+    The difference is how we generate features (predictions) for the next level:
+
+    stacking: perform cross-validation procedure and predict each part of train set (OOF)
+    blending: predict fixed holdout set
+"""
 
 
 def auc_lift_score_func(y, y_pred):
@@ -18,18 +32,30 @@ def auc_lift_score_func(y, y_pred):
 auc_lift_scorer = make_scorer(auc_lift_score_func, greater_is_better=True)
 
 DEFAULT_STACKER = Ridge()
-DEFAULT_BASE_MDOELS = (
+DEFAULT_BASE_MODELS = (
     {
         'model': LgbCookie(random_state=1),
-        'num_boost_round': 10
+        'exec_params': {
+            'num_boost_round': 10000,
+            'early_stopping_rounds': 200,
+        }
     },
     {
         'model': LgbCookie(random_state=2),
-        'num_boost_round': 10
+        'exec_params': {
+            'num_boost_round': 10000,
+            'early_stopping_rounds': 200,
+        }
     },
     {
         'model': LgbCookie(random_state=3),
-        'num_boost_round': 10
+        'params_override': {
+            'boosting_type': 'dart'
+        },
+        'exec_params': {
+            'num_boost_round': 10000,
+            'early_stopping_rounds': 200,
+        }
     },
 )
 
@@ -38,7 +64,7 @@ class Ensemble():
     def __init__(self,
                  n_splits=5,
                  stacker=DEFAULT_STACKER,
-                 base_models=DEFAULT_BASE_MDOELS):
+                 base_models=DEFAULT_BASE_MODELS):
         self.n_splits = n_splits
         self.stacker = stacker
         self.base_models = base_models
@@ -55,16 +81,19 @@ class Ensemble():
             S_test_i = np.zeros((T.shape[0], self.n_splits))
 
             model = clf.pop('model')
-            kwargs = clf
+            params_override = clf.pop('params_override', {})
+            exec_params = clf.pop('exec_params', {})
+
+            model.params_best_fit = {**model.params_best_fit, **params_override}
             for j, (train_idx, test_idx) in enumerate(folds):
                 X_train = X.iloc[train_idx]
                 y_train = y.iloc[train_idx]
                 X_holdout = X.iloc[test_idx]
-                # y_holdout = y.iloc[test_idx]
+                y_holdout = y.iloc[test_idx]
 
                 with Timer("Fit_Predict Model {} fold {}".format(clf, j)):
                     y_pred = model.fit_predict(X_train, y_train, X_holdout,
-                                               **kwargs)
+                                               y_holdout, **exec_params)
 
                 S_train[test_idx, i] = y_pred.values.ravel()
                 S_test_i[:, j] = model.booster.predict(T)[:]
@@ -77,7 +106,6 @@ class Ensemble():
             cv=5,
             scoring=auc_lift_scorer)
         print("Stacker score: %.5f (%.5f)" % (results.mean(), results.std()))
-        exit()
 
         self.stacker.fit(S_train, y)
         res = self.stacker.predict(S_test)[:]
@@ -94,3 +122,22 @@ class Ensemble():
 
         score = auc_lift_score_func(y_test, y_pred)
         print('Obtained AUC Lift of {}'.format(score))
+
+    def generate_submit(self, drop_lowimp_features=False):
+        datahandle = DataHandleCookie(
+            debug=False, drop_lowimp_features=drop_lowimp_features)
+
+        dtrain = datahandle.get_train_set()
+        dtest = datahandle.get_test_set()
+
+        X_train, y_train = dtrain
+        X_test = dtest
+
+        y_pred = self.fit_predict(X_train, y_train, X_test)
+
+        df = pd.DataFrame(y_pred)
+        now = pd.Timestamp.now(tz='CET').strftime("%d-%Hh-%Mm")
+        df.to_csv(
+            RESULT_DIR / "submit_{}.csv".format(now),
+            index=False,
+            header=False)

@@ -229,12 +229,12 @@ class LgbCookie(BaseModelCookie):
 
         return pd.DataFrame({label: pred})
 
-    def fit_predict(self, X_train, y_train, X_pred, **kwargs):
+    def fit_predict(self, X_train, y_train, X_pred, y_pred, **kwargs):
         dtrain = to_gradboost_dataset(X_train, y_train, as_lgb_dataset=True)
-        dtest = to_gradboost_dataset(X_pred, as_lgb_dataset=False)
+        dtest = to_gradboost_dataset(X_pred, y_pred, as_lgb_dataset=True)
 
-        valid_sets = [dtrain]
-        valid_names = ['train']
+        valid_sets = [dtrain, dtest]
+        valid_names = ['train', 'holdout']
 
         params = copy.deepcopy(self.params_best_fit)
         params['random_state'] = self.random_state
@@ -248,7 +248,7 @@ class LgbCookie(BaseModelCookie):
             **kwargs,
         )
 
-        pred = booster.predict(dtest)
+        pred = booster.predict(X_pred)
 
         self.booster = booster
 
